@@ -30,7 +30,7 @@ Windows
 python -m venv env  
 ```
 Linux
-```sh
+```shpython
 python3 -m venv env  
 ```
 ### Activate virtual environment

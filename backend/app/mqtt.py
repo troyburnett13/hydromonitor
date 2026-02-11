@@ -1,3 +1,4 @@
+
 ########################################################################################################
 #                                                                                                      #
 #   MQTT Paho Documentation - https://eclipse.dev/paho/index.php?page=clients/python/docs/index.php    #
@@ -15,8 +16,8 @@ class MQTT:
     # ID = f"IOT_B_1000"
     ID = f"IOT_B_{randint(1,1000000)}"
 
-    #  1. DEFINE ALL TOPICS TO SUBSCRIBE TO. BELOW ARE SOME EXAMPLES. YOUR ARE REQUIRED TO CHANGE THESE TO TOPICS THAT FITS YOUR USE CASE
-    sub_topics = [("620012345_pub", 0), ("620012345", 0), ("620012345_sub", 0)] #  A list of tuples of (topic, qos). Both topic and qos must be present in the tuple.
+    #  1. DEFINE ALL TOPICS TO SUBSCRIBE TO. PRIMARY TOPIC FIRST.
+    sub_topics = [("620141171", 0), ("620141171_pub", 0), ("620141171_sub", 0)]  # (topic, qos)
 
 
     def __init__(self,mongo):
@@ -32,16 +33,19 @@ class MQTT:
         self.client.on_disconnect   = self.on_disconnect
         self.client.on_subscribe    = self.on_subscribe
 
-
+        # Register callback for each subscribed topic so all inbound messages are processed
+        for topic, _ in self.sub_topics:
+            self.client.message_callback_add(topic, self.update)
+       
         # 3. REGISTER CALLBACK FUNCTION(S) FOR EACH TOPIC USING THE self.client.message_callback_add("topic",self.function) FUNCTION
         # WHICH TAKES A TOPIC AND THE NAME OF THE CALLBACK FUNCTION YOU HAVE CREATED FOR THIS SPECIFIC TOPIC
 
          
 
-        # 4. UPDATE MQTT SERVER AND PORT INFORMATION BELOW
-        self.client.connect_async("localhost", 1883, 60)
-       
-
+        # 4. MQTT SERVER SETTINGS — keep in sync with hardware publisher
+        # Hardware publishes to broker.hivemq.com:1883 on topic 620141171
+        self.client.connect_async("www.yanacreations.com", 1883, 60)
+        self.client.loop_start()
 
     def connack_string(self,rc):
         connection = {0: "Connection successful", 1: "Connection refused - incorrect protocol version", 2: "Connection refused - invalid client identifier", 3: "Connection refused - server unavailable", 4: "Connection refused - bad username or password", 5: "Connection refused - not authorised" }
@@ -81,14 +85,22 @@ class MQTT:
             print("MQTT: Unexpected Disconnection.")
    
 
-    # 2. DEFINE CALLBACK FUNCTIONS(S) BELOW FOR EACH TOPIC(S) THE BACKEND SUBSCRIBES TO 
+    # 2. DEFINE CALLBACK FUNCTIONS(S) BELOW FOR EACH TOPIC(S) THE BACKEND SUBSCRIBES TO
+
+    def update(self, client, userdata, msg):
+        '''Process messages from Hardware'''
+        try:
+            topic = msg.topic
+            payload = msg.payload.decode("utf-8")
+            
+            print(payload) # UNCOMMENT WHEN DEBUGGING
+            # ADD YOUR CODE HERE TO PROCESS MESSAGE
+            update = loads(payload) # CONVERT FROM JSON STRING TO JSON OBJECT
+            self.mongo.addUpdate(update) # INSERT INTO DATABASE
+            print("MQTT: update processed and forwarded to Mongo")
+        except Exception as e:
+            print(f"MQTT: UPDATE Error - {str(e)}")
      
-
-
-     
-
-
-
 
 
 

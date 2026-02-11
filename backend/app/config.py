@@ -16,14 +16,17 @@ class Config(object):
     IMAGE_FOLDER                            = environ.get('IMAGE_FOLDER') 
 
     ENV                                     = environ.get('FLASK_ENV') 
-    FLASK_RUN_PORT                          = environ.get('FLASK_RUN_PORT') 
-    FLASK_RUN_HOST                          = environ.get('FLASK_RUN_HOST') 
+    FLASK_RUN_PORT                          = int(environ.get('FLASK_RUN_PORT', 5000))
+    FLASK_RUN_HOST                          = environ.get('FLASK_RUN_HOST', '0.0.0.0') 
 
     # MONGODB VARIABLES
-    DB_USERNAME                             = environ.get('DB_USERNAME') 
-    DB_PASSWORD                             = environ.get('DB_PASSWORD') 
-    DB_SERVER                               = environ.get('DB_SERVER') 
-    DB_PORT                                 = environ.get('DB_PORT') 
+    DB_USERNAME                             = environ.get('DB_USERNAME','') 
+    DB_PASSWORD                             = environ.get('DB_PASSWORD','') 
+    DB_SERVER                               = environ.get('DB_SERVER','www.yanacreations.com') 
+    DB_PORT                                 = int(environ.get('DB_PORT', 27017))
+
+    # Optional TLS flag for MongoDB
+    DB_TLS                                  = eval(environ.get('DB_TLS','False'))
 
     PROPAGATE_EXCEPTIONS                    = False
  

@@ -32,13 +32,20 @@ class DB:
         self.ObjectId                       = ObjectId 
         self.server			                = Config.DB_SERVER
         self.port			                = Config.DB_PORT
-        self.username                   	= parse.quote_plus(Config.DB_USERNAME)
-        self.password                   	= parse.quote_plus(Config.DB_PASSWORD)
+        # Safely encode credentials; fall back to empty string to avoid TypeErrors when env vars are missing
+        self.username                   	= parse.quote_plus(Config.DB_USERNAME or "")
+        self.password                   	= parse.quote_plus(Config.DB_PASSWORD or "")
         self.remoteMongo                	= MongoClient
         self.ReturnDocument                 = ReturnDocument
         self.PyMongoError               	= errors.PyMongoError
         self.BulkWriteError             	= errors.BulkWriteError  
-        self.tls                            = False # MUST SET TO TRUE IN PRODUCTION
+        # Default to no TLS unless explicitly enabled in Config
+        self.tls                            = getattr(Config, "DB_TLS", False)
+        # Build Mongo URI with or without credentials depending on availability
+        if self.username and self.password:
+            self.mongo_uri = f"mongodb://{self.username}:{self.password}@{self.server}:{self.port}"
+        else:
+            self.mongo_uri = f"mongodb://{self.server}:{self.port}"
 
 
     def __del__(self):
@@ -54,63 +61,66 @@ class DB:
     def addUpdate(self,data):
         '''ADD A NEW STORAGE LOCATION TO COLLECTION'''
         try:
-            remotedb 	= self.remoteMongo('mongodb://%s:%s@%s:%s' % (self.username, self.password,self.server,self.port), tls=self.tls)
+            remotedb 	= self.remoteMongo(self.mongo_uri, tls=self.tls)
             result      = remotedb.ELET2415.climo.insert_one(data)
+            inserted = result.inserted_id
+            print(f"Mongo insert OK id={inserted}")
+            return inserted
         except Exception as e:
             msg = str(e)
-            if "duplicate" not in msg:
-                print("addUpdate error ",msg)
-            return False
-        else:                  
-            return True
+            if "duplicate" not in msg.lower():
+                print(f"addUpdate error [{self.mongo_uri}] ",msg)
+            return None
         
        
 
     def getAllInRange(self,start, end):
         '''RETURNS A LIST OF OBJECTS. THAT FALLS WITHIN THE START AND END DATE RANGE'''
         try:
-            remotedb 	= self.remoteMongo('mongodb://%s:%s@%s:%s' % (self.username, self.password,self.server,self.port), tls=self.tls)
-            result      = list(remotedb.ELET2415.climo.find('''Add your query here'''))
+            remotedb 	= self.remoteMongo(self.mongo_uri, tls=self.tls)
+            result      = list(remotedb.ELET2415.climo.find({"timestamp":{"$gte":int(start),"$lte":int(end)}}, {"_id":0}).sort("timestamp",1))
+            #print(result)
+            #print(end)
+            return result
         except Exception as e:
             msg = str(e)
             print("getAllInRange error ",msg)            
-        else:                  
-            return result
+            return []
         
 
     def humidityMMAR(self,start, end):
         '''RETURNS MIN, MAX, AVG AND RANGE FOR HUMIDITY. THAT FALLS WITHIN THE START AND END DATE RANGE'''
         try:
-            remotedb 	= self.remoteMongo('mongodb://%s:%s@%s:%s' % (self.username, self.password,self.server,self.port), tls=self.tls)
-            result      = list(remotedb.ELET2415.climo.aggregate( '''Add your Aggregation pipeline here in this function'''))
+            remotedb 	= self.remoteMongo(self.mongo_uri, tls=self.tls)
+            result      = list(remotedb.ELET2415.climo.aggregate([{"$match": {"timestamp": {"$gte": int(start), "$lte": int(end)}}}, {"$group": {"_id": None, "humidity": {"$push": "$$ROOT.humidity"}}}, {"$project": {"_id": 0, "max": {"$max": "$humidity"}, "min": {"$min": "$humidity"},"avg": {"$avg": "$humidity"}, "range": {"$subtract": [{"$max": "$humidity"}, {"$min": "$humidity"}]}}}]))
+            return result
         except Exception as e:
             msg = str(e)
             print("humidityMMAS error ",msg)            
-        else:                  
-            return result
+            return []
         
     def temperatureMMAR(self,start, end):
         '''RETURNS MIN, MAX, AVG AND RANGE FOR TEMPERATURE. THAT FALLS WITHIN THE START AND END DATE RANGE'''
         try:
-            remotedb 	= self.remoteMongo('mongodb://%s:%s@%s:%s' % (self.username, self.password,self.server,self.port), tls=self.tls)
-            result      = list(remotedb.ELET2415.climo.aggregate( '''Add your Aggregation pipeline here in this function'''))
+            remotedb 	= self.remoteMongo(self.mongo_uri, tls=self.tls)
+            result      = list(remotedb.ELET2415.climo.aggregate([{"$match": {"timestamp": {"$gte": int(start), "$lte": int(end)}}}, {"$group": {"_id": None, "temperature": {"$push": "$$ROOT.temperature"}}}, {"$project": {"_id": 0, "max": {"$max": "$temperature"}, "min": {"$min": "$temperature"},"avg": {"$avg": "$temperature"}, "range": {"$subtract": [{"$max": "$temperature"}, {"$min": "$temperature"}]}}}]))
+            return result
         except Exception as e:
             msg = str(e)
             print("temperatureMMAS error ",msg)            
-        else:                  
-            return result
+            return []
 
 
     def frequencyDistro(self,variable,start, end):
         '''RETURNS THE FREQUENCY DISTROBUTION FOR A SPECIFIED VARIABLE WITHIN THE START AND END DATE RANGE'''
         try:
-            remotedb 	= self.remoteMongo('mongodb://%s:%s@%s:%s' % (self.username, self.password,self.server,self.port), tls=self.tls)
-            result      = list(remotedb.ELET2415.climo.aggregate( '''Add your Aggregation pipeline here in this function'''))
+            remotedb 	= self.remoteMongo(self.mongo_uri, tls=self.tls)
+            result      = list(remotedb.ELET2415.climo.aggregate([{"$match": {"timestamp": {"$gte": int(start), "$lte": int(end)}}}, {"$bucket": {"groupBy": "$" + variable, "boundaries": [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100], "default": "outliers", "output": {"count": {"$sum": 1}}}}]))
+            return result
         except Exception as e:
             msg = str(e)
             print("frequencyDistro error ",msg)            
-        else:                  
-            return result
+            return []
         
  
 
